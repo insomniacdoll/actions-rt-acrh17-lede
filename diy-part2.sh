@@ -18,6 +18,16 @@ echo 'start modify ustream-ssl Makefile'
 sed -i 's/e251189ed315f22ab63dc6f17b03178676e10c21fff0cdd863b294a3c51a1b5b/c48331dcfda73d16cb12a0aa069eb62a5c370428c7559011a7284a9ef67d3089/g' package/libs/ustream-ssl/Makefile
 echo 'modify ustream-ssl Makefile OK'
 
+# Add Debian Snapshot as a fallback for the 1.8.10 tarball with the same PKG_HASH.
+erofs_makefile=tools/erofs-utils/Makefile
+if grep -Eq '^PKG_VERSION[[:space:]]*:?=[[:space:]]*1\.8\.10[[:space:]]*$' "$erofs_makefile"; then
+    sed -i '/^PKG_SOURCE_URL=https:\/\/git\.kernel\.org\/pub\/scm\/linux\/kernel\/git\/xiang\/erofs-utils\.git\/snapshot\/$/ {
+        s|$| https://snapshot.debian.org/archive/debian/20250801T142337Z/pool/main/e/erofs-utils|
+        a\
+PKG_SOURCE_URL_FILE:=erofs-utils_1.8.10.orig.tar.gz
+    }' "$erofs_makefile" || exit 1
+fi
+
 # Modify v2ray-plugin
 # echo 'start modify v2ray-plugin Makefile'
 # sed -i 's/5.25.0/5.17.0/g' feeds/small/v2ray-plugin/Makefile

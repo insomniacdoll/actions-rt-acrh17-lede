@@ -184,7 +184,7 @@ jobs:
 
     - name: Organize files
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      if: steps.compile.outcome == 'success' && (env.UPLOAD_FIRMWARE == 'true' || env.UPLOAD_RELEASE == 'true') && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
@@ -193,14 +193,14 @@ jobs:
 
     - name: Upload firmware directory
       uses: actions/upload-artifact@v6
-      if: steps.organize.outputs.status == 'success' && !cancelled()
+      if: steps.organize.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
     - name: Upload firmware to cowtransfer
       id: cowtransfer
-      if: steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
+      if: steps.organize.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
       run: |
         curl -fsSL git.io/file-transfer | sh
         ./transfer cow --block 2621440 -s -p 64 --no-progress ${FIRMWARE} 2>&1 | tee cowtransfer.log
@@ -209,7 +209,7 @@ jobs:
 
     - name: Upload firmware to WeTransfer
       id: wetransfer
-      if: steps.organize.outputs.status == 'success' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
+      if: steps.organize.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
       run: |
         curl -fsSL git.io/file-transfer | sh
         ./transfer wet -s -p 16 --no-progress ${FIRMWARE} 2>&1 | tee wetransfer.log
@@ -218,7 +218,7 @@ jobs:
 
     - name: Generate release tag
       id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: steps.organize.outcome == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >>$GITHUB_OUTPUT
         touch release.txt
@@ -227,6 +227,7 @@ jobs:
         echo "status=success" >>$GITHUB_OUTPUT
 
     - name: Upload firmware to release
+      id: release
       uses: softprops/action-gh-release@v3
       if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
@@ -235,6 +236,7 @@ jobs:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
+        fail_on_unmatched_files: true
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@v2
@@ -246,7 +248,7 @@ jobs:
 
     - name: Remove old Releases
       uses: actions/github-script@v8
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: steps.release.outcome == 'success' && !cancelled()
       with:
         script: |
           const releases = await github.paginate(github.rest.repos.listReleases, {
